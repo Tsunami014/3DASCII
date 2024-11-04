@@ -32,10 +32,8 @@ def printWorld(blocks, pos, angle):
             wheres.sort(key=lambda p: (p[0]-pos[0])**2 + (p[1]-pos[1])**2)
             p = wheres[0]
             dist = math.sqrt((p[0]-pos[0])**2 + (p[1]-pos[1])**2)
-            #c = "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'."[int((dist/VIEWDIST)*50)]
-            d = (p[0]-pos[0], p[1]-pos[1])
-            ts = [i.tangent(colls.Point(*p), d) for i in cs]
-            c = {0: ".", 45: ",", 90: ":", 135: ";", 180: "'", 180+45: '"', 270: "[", 270+45: "]"}[ts[0]%360]
+            chrs = "#@80GCLft1i;:,."
+            c = chrs[int((dist/VIEWDIST)*len(chrs))]
             diff = int((dist/VIEWDIST) * (DISPLAYSIZE[1]/2))
             for y in range(DISPLAYSIZE[1]-diff*2):
                 grid[y+diff][x] = c
