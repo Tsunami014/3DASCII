@@ -1,9 +1,12 @@
 import math
+import time
+import random
 import readchar
 import BlazeSudio.collisions as colls
+from threading import Thread
+t0 = time.time()
 
 # TODO: Speed up
-# TODO: Coin animations
 
 TILESIZE = 100
 DISPLAYSIZE = (60, 30)
@@ -11,15 +14,15 @@ VIEWDIST = 500
 FOV = 100
 
 IMGS = {
-1: r"""
-  /---\
- /#####\
-/###*###\
+1: """
+  +---+
+ +#####+
++###*###+
 |#*****#|
 |##***##|
-\#*###*#/
- \#####/
-  \---/
++#*###*#+
+ +#####+
+  +---+
 """
 }
 IMGSZES = {
@@ -70,9 +73,13 @@ def printWorld(blocks, pos, angle):
     pos = (pos[0] * TILESIZE, pos[1] * TILESIZE)
     def mutateShp(shape, typ):
         if typ == 1:
+            random.seed(id(shape))
+            off = random.randint(0, 359)
+            off += (time.time() - t0) * 100
+            off = int(off % 360)
             SZE = IMGSZES[typ]
-            p1 = colls.rotate((shape.x, shape.y), (shape.x, shape.y+shape.r*SZE), angle-90)
-            p2 = colls.rotate((shape.x, shape.y), (shape.x, shape.y+shape.r*SZE), angle+90)
+            p1 = colls.rotate((shape.x, shape.y), (shape.x, shape.y+shape.r*SZE), angle-90+off)
+            p2 = colls.rotate((shape.x, shape.y), (shape.x, shape.y+shape.r*SZE), angle+90+off)
             return (colls.Line(p1, p2, 0), typ)
         return (shape, typ)
     blocks = [mutateShp(*i) for i in blocks]
@@ -108,6 +115,7 @@ def printWorld(blocks, pos, angle):
                         SZE = IMGSZES[typ]
                         COL = IMGCOLS[typ]
                         a = (dy * (p[1] - shp.p1[1]) + dx * (p[0] - shp.p1[0])) / det
+                        a = max(0, min(1, a))
                         a = int(len(IMG[0]) * (1-a))
                         dist = math.sqrt(d)
                         hei = len(IMG)+(1-dist/VIEWDIST)*DISPLAYSIZE[1]
@@ -132,13 +140,39 @@ def printWorld(blocks, pos, angle):
     print()
     print('\033[%iA'%(DISPLAYSIZE[1]+2+len(extras)), end='')
 
+def handleInputThread():
+    global pos, angle, run
+    while True:
+        o = readchar.readkey()
+        if o == readchar.key.CTRL_C or o == readchar.key.CTRL_D or o == readchar.key.ESC:
+            run = False
+            break
+        move = [0, 0]
+        if o == 'w' or o == readchar.key.UP:
+            move[1] -= 0.1
+        if o == 's' or o == readchar.key.DOWN:
+            move[1] += 0.1
+        if o == 'a':
+            move[0] -= 0.1
+        if o == 'd':
+            move[0] += 0.1
+        opos = pos.copy()
+        pos[0] += move[0]*math.cos(math.radians(angle)) - move[1]*math.sin(math.radians(angle))
+        pos[1] += move[0]*math.sin(math.radians(angle)) + move[1]*math.cos(math.radians(angle))
+        if colls.Line((opos[0]*TILESIZE, opos[1]*TILESIZE), (pos[0]*TILESIZE, pos[1]*TILESIZE)).collides([i[0] for i in blocks if i[1] == 0]):
+            pos = opos
+        if o == 'q' or o == readchar.key.LEFT:
+            angle -= 5
+        if o == 'e' or o == readchar.key.RIGHT:
+            angle += 5
+
 angle = -90
 
 blocks, pos = renderTilemap("""
 ###################
 ##   # C   #      #
 # S ###  #    ##  #
-#  C #  #####     #
+#    #  #####     #
 ###    # ##  #    #
 #C# C#   #  C # # #
 #  # # #          #
@@ -156,26 +190,12 @@ blocks, pos = renderTilemap("""
 # #################################
 # """)
 
+t = Thread(target=handleInputThread, daemon=True)
+t.start()
+
 print("\033[2J", end="")
-while True:
+run = True
+while run:
     blocks = handleExtras(blocks, pos)
     printWorld(blocks, pos, angle)
-    o = readchar.readkey()
-    move = [0, 0]
-    if o == 'w' or o == readchar.key.UP:
-        move[1] -= 0.1
-    if o == 's' or o == readchar.key.DOWN:
-        move[1] += 0.1
-    if o == 'a':
-        move[0] -= 0.1
-    if o == 'd':
-        move[0] += 0.1
-    opos = pos.copy()
-    pos[0] += move[0]*math.cos(math.radians(angle)) - move[1]*math.sin(math.radians(angle))
-    pos[1] += move[0]*math.sin(math.radians(angle)) + move[1]*math.cos(math.radians(angle))
-    if colls.Line((opos[0]*TILESIZE, opos[1]*TILESIZE), (pos[0]*TILESIZE, pos[1]*TILESIZE)).collides([i[0] for i in blocks if i[1] == 0]):
-        pos = opos
-    if o == 'q' or o == readchar.key.LEFT:
-        angle -= 5
-    if o == 'e' or o == readchar.key.RIGHT:
-        angle += 5
+    time.sleep(0.1)
