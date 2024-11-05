@@ -6,7 +6,7 @@ import BlazeSudio.collisions as colls
 from threading import Thread
 t0 = time.time()
 
-# TODO: Speed up
+# TODO: Optimise
 
 TILESIZE = 100
 DISPLAYSIZE = (60, 30)
@@ -131,14 +131,33 @@ def printWorld(blocks, pos, angle):
 
     print("\033[0;0H", end="")
 
-    extras = printExtras()
-    print("\n".join(i+"\033[K" for i in extras))
+    displayBox = False # TODO: Options screen
+    if displayBox:
+        extras = printExtras()
+        print("\n".join(i+"\033[K" for i in extras))
 
-    for col in grid:
-        print("".join(col)+"\033[K")
+        print('╭'+'─'*DISPLAYSIZE[0]+'╮\033[K')
+        for col in grid:
+            print("│"+"".join(col)+"│\033[K")
+        print('╰'+'─'*DISPLAYSIZE[0]+'╯\033[K')
+    else:
+        extras = printExtras()
+        mx = max(len(i) for i in extras)
+        print("┌"+"─"*mx+"┐\033[K")
+        print("\n".join("│"+i+"│\033[K" for i in extras))
+
+        if DISPLAYSIZE[0] > mx:
+            print('┢'+'━'*mx+'┷'+'━'*(DISPLAYSIZE[0]-mx-1)+'┓\033[K')
+        elif DISPLAYSIZE[0] < mx:
+            print('┢'+'━'*DISPLAYSIZE[0]+'┱'+'─'*(mx-DISPLAYSIZE[0]-1)+'┘\033[K')
+        else:
+            print('┢'+'━'*mx+'┪\033[K')
+        for col in grid:
+            print("┃"+"".join(col)+"┃\033[K")
+        print('┗'+'━'*DISPLAYSIZE[0]+'┛\033[K')
     
-    print()
-    print('\033[%iA'%(DISPLAYSIZE[1]+2+len(extras)), end='')
+    print('\033[K')
+    print('\033[%iA'%(DISPLAYSIZE[1]+2+len(extras)+2), end='')
 
 def handleInputThread():
     global pos, angle, run
@@ -198,4 +217,3 @@ run = True
 while run:
     blocks = handleExtras(blocks, pos)
     printWorld(blocks, pos, angle)
-    time.sleep(0.1)
