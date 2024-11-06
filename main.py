@@ -4,25 +4,27 @@ import random
 import readchar
 import BlazeSudio.collisions as colls
 from threading import Thread
+from queue import Queue, Empty
 t0 = time.time()
 
 # TODO: Optimise
+# TODO: Display map
 
 TILESIZE = 100
-DISPLAYSIZE = (60, 30)
+DISPLAYSIZE = [60, 30]
 VIEWDIST = 500
 FOV = 100
 
 IMGS = {
 1: """
-  +---+
+  +++++
  +#####+
 +###*###+
-|#*****#|
-|##***##|
++#*****#+
++##***##+
 +#*###*#+
  +#####+
-  +---+
+  +++++
 """
 }
 IMGSZES = {
@@ -66,9 +68,12 @@ def handleExtras(blocks, pos):
 
 def printExtras():
     return [
-        "COINS: %i"%COINS
+        f"COINS: {COINS} / {MAXCOINS}",
+        "WSAD or ↑↓ to move, Q&E or ←→ to turn. F5 to exit and C to clear.",
+        "JLIK to change the window size, U&O to change the FOV"
     ]
 
+clear = True
 def printWorld(blocks, pos, angle):
     pos = (pos[0] * TILESIZE, pos[1] * TILESIZE)
     def mutateShp(shape, typ):
@@ -129,7 +134,12 @@ def printWorld(blocks, pos, angle):
                         diff = int((dist/VIEWDIST) * (DISPLAYSIZE[1]/2))
                         grid[DISPLAYSIZE[1]-diff*2+diff][x] = "_"
 
-    print("\033[0;0H", end="")
+    global clear
+    if clear:
+        print("\033[2J", end="")
+        clear = False
+    else:
+        print("\033[0;0H", end="")
 
     displayBox = False # TODO: Options screen
     if displayBox:
@@ -144,7 +154,7 @@ def printWorld(blocks, pos, angle):
         extras = printExtras()
         mx = max(len(i) for i in extras)
         print("┌"+"─"*mx+"┐\033[K")
-        print("\n".join("│"+i+"│\033[K" for i in extras))
+        print("\n".join("│"+i+" "*(mx-len(i))+"│\033[K" for i in extras))
 
         if DISPLAYSIZE[0] > mx:
             print('┢'+'━'*mx+'┷'+'━'*(DISPLAYSIZE[0]-mx-1)+'┓\033[K')
@@ -155,17 +165,35 @@ def printWorld(blocks, pos, angle):
         for col in grid:
             print("┃"+"".join(col)+"┃\033[K")
         print('┗'+'━'*DISPLAYSIZE[0]+'┛\033[K')
-    
-    print('\033[K')
     print('\033[%iA'%(DISPLAYSIZE[1]+2+len(extras)+2), end='')
 
-def handleInputThread():
-    global pos, angle, run
+Q1 = Queue()
+Q2 = Queue()
+def handleInputThread(Q1: Queue, Q2: Queue):
+    global pos, angle, run, clear, DISPLAYSIZE, FOV
     while True:
         o = readchar.readkey()
-        if o == readchar.key.CTRL_C or o == readchar.key.CTRL_D or o == readchar.key.ESC:
+        Q2.put(None)
+        Q1.get()
+        if o == readchar.key.CTRL_C or o == readchar.key.CTRL_D or o == readchar.key.ESC or o == readchar.key.F5:
             run = False
             break
+        if o == 'c':
+            clear = True
+        
+        if o == 'j':
+            DISPLAYSIZE = (DISPLAYSIZE[0]-1, DISPLAYSIZE[1])
+        if o == 'l':
+            DISPLAYSIZE = (DISPLAYSIZE[0]+1, DISPLAYSIZE[1])
+        if o == 'i':
+            DISPLAYSIZE = (DISPLAYSIZE[0], DISPLAYSIZE[1]-1)
+        if o == 'k':
+            DISPLAYSIZE = (DISPLAYSIZE[0], DISPLAYSIZE[1]+1)
+        if o == 'u':
+            FOV -= 1
+        if o == 'o':
+            FOV += 1
+
         move = [0, 0]
         if o == 'w' or o == readchar.key.UP:
             move[1] -= 0.1
@@ -175,28 +203,42 @@ def handleInputThread():
             move[0] -= 0.1
         if o == 'd':
             move[0] += 0.1
-        opos = pos.copy()
-        pos[0] += move[0]*math.cos(math.radians(angle)) - move[1]*math.sin(math.radians(angle))
-        pos[1] += move[0]*math.sin(math.radians(angle)) + move[1]*math.cos(math.radians(angle))
-        if colls.Line((opos[0]*TILESIZE, opos[1]*TILESIZE), (pos[0]*TILESIZE, pos[1]*TILESIZE)).collides([i[0] for i in blocks if i[1] == 0]):
-            pos = opos
+        if move != [0, 0]:
+            opos = pos.copy()
+            pos[0] += move[0]*math.cos(math.radians(angle)) - move[1]*math.sin(math.radians(angle))
+            pos[1] += move[0]*math.sin(math.radians(angle)) + move[1]*math.cos(math.radians(angle))
+            if colls.Line((opos[0]*TILESIZE, opos[1]*TILESIZE), (pos[0]*TILESIZE, pos[1]*TILESIZE)).collides([i[0] for i in blocks if i[1] == 0]):
+                pos = opos
+        
         if o == 'q' or o == readchar.key.LEFT:
             angle -= 5
         if o == 'e' or o == readchar.key.RIGHT:
             angle += 5
+        
+        Q2.put(None)
 
 angle = -90
 
-blocks, pos = renderTilemap("""
-###################
-##   # C   #      #
-# S ###  #    ##  #
-#    #  #####     #
-###    # ##  #    #
-#C# C#   #  C # # #
-#  # # #          #
-###################
-""")
+tmap = """
+                ######
+              ###  C #
+##############C  #  ##
+##   # C  #       # #
+# S ### #   # ##    #
+#    #  #####  C# ##
+###    # ##  ###  ##
+#C# C#   #  C #C# # ##
+#  # # #     #    #   #
+#  ###########  ###C# ##
+#   #  C #C  #   ####  #
+##    # C #    #      #
+######################
+"""
+
+tmap = tmap.strip('\n')
+blocks, pos = renderTilemap(tmap)
+
+MAXCOINS = tmap.count("C")
 
 # blocks, pos = renderTilemap("""
 # #################################
@@ -209,11 +251,16 @@ blocks, pos = renderTilemap("""
 # #################################
 # """)
 
-t = Thread(target=handleInputThread, daemon=True)
+t = Thread(target=handleInputThread, daemon=True, args=(Q1,Q2))
 t.start()
 
-print("\033[2J", end="")
 run = True
 while run:
     blocks = handleExtras(blocks, pos)
     printWorld(blocks, pos, angle)
+    try:
+        Q2.get_nowait()
+        Q1.put(None)
+        Q2.get()
+    except Empty:
+        pass
