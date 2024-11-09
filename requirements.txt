@@ -1,2 +1,2 @@
-BlazeSudio
+Blaze-Sudio[game]
 readchar
